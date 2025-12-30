@@ -178,12 +178,6 @@ def _overlay_logo(
     if base_w <= 0 or base_h <= 0:
         raise ValueError("Base image has invalid dimensions")
 
-    target_logo_w = max(1, min(base_w, int(base_w * logo_scale)))
-    scale_factor = target_logo_w / max(1, logo_rgba.width)
-    target_logo_h = max(1, int(logo_rgba.height * scale_factor))
-
-    logo_rgba = logo_rgba.resize((target_logo_w, target_logo_h), RESAMPLE)
-
     max_allowed_w = base_w - (2 * padding)
     max_allowed_h = base_h - (2 * padding)
     if max_allowed_w <= 0:
@@ -194,16 +188,24 @@ def _overlay_logo(
     max_logo_w = max(1, max_allowed_w - (2 * LOGO_BG_PADDING))
     max_logo_h = max(1, max_allowed_h - (2 * LOGO_BG_PADDING))
 
-    if logo_rgba.width > max_logo_w or logo_rgba.height > max_logo_h:
-        shrink = min(max_logo_w / logo_rgba.width, max_logo_h / logo_rgba.height)
-        new_w = max(1, int(logo_rgba.width * shrink))
-        new_h = max(1, int(logo_rgba.height * shrink))
-        logo_rgba = logo_rgba.resize((new_w, new_h), RESAMPLE)
+    target_logo_w = max(1, min(base_w, int(base_w * logo_scale)))
+    scale_factor = target_logo_w / max(1, logo_rgba.width)
+    target_logo_h = max(1, int(logo_rgba.height * scale_factor))
+
+    if target_logo_w > max_logo_w or target_logo_h > max_logo_h:
+        shrink = min(max_logo_w / target_logo_w, max_logo_h / target_logo_h)
+        target_logo_w = max(1, int(target_logo_w * shrink))
+        target_logo_h = max(1, int(target_logo_h * shrink))
+
+    if (logo_rgba.width, logo_rgba.height) != (target_logo_w, target_logo_h):
+        logo_rgba = (
+            logo_rgba.convert("RGBa").resize((target_logo_w, target_logo_h), RESAMPLE).convert("RGBA")
+        )
 
     bg_w = logo_rgba.width + (2 * LOGO_BG_PADDING)
     bg_h = logo_rgba.height + (2 * LOGO_BG_PADDING)
-    background = Image.new("RGBA", (bg_w, bg_h), LOGO_BG_COLOR)
-    background.paste(logo_rgba, (LOGO_BG_PADDING, LOGO_BG_PADDING), mask=logo_rgba)
+    overlay = Image.new("RGBA", (bg_w, bg_h), (0, 0, 0, 0))
+    overlay.paste(logo_rgba, (LOGO_BG_PADDING, LOGO_BG_PADDING), mask=logo_rgba)
 
     if position == "top-left":
         x, y = padding, padding
@@ -219,7 +221,7 @@ def _overlay_logo(
     x = max(0, x)
     y = max(0, y)
 
-    base_rgba.paste(background, (x, y), mask=background)
+    base_rgba.alpha_composite(overlay, dest=(x, y))
     return base_rgba
 
 
